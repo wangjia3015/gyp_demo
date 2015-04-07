@@ -7,7 +7,6 @@
 int main() {
 	int sfd = socket_tcp_server(8888);
 	
-	set_socket_reuse(sfd);
 
 	sock_select_mode(sfd);
 //	for(;;) {

@@ -7,7 +7,10 @@
 #include <errno.h>
 #include <arpa/inet.h>
 
+
+#include <algorithm>
 #include <set>
+void set_socket_reuse(int);
 
 void err_log(const char * msg) {
 	printf("error : %s err code %d\n", msg, errno);
@@ -21,6 +24,8 @@ void log(const char * msg) {
 int socket_tcp_server(int port) {
 
 	int sfd = socket(AF_INET, SOCK_STREAM, 0);
+
+	set_socket_reuse(sfd);
 
 	sockaddr_in addr;
 	addr.sin_port = htons(port);
@@ -42,18 +47,50 @@ int socket_tcp_server(int port) {
 
 void set_socket_reuse(int fd) {
 	const int on = 1;
-	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &on, sizeof(on));
+	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &on, sizeof(on))) {
+		err_log("setsockopt error");
+	}
 }
 
 // ----------------------------------------------
 void sock_send_msg(int fd) {
 	const char * buf = "hello world";
-	send(fd, buf, sizeof(buf), 0);
+	send(fd, buf, strlen(buf), 0);
+}
+
+int max_fd(const std::set<int> &set) {
+	std::set<int>::const_iterator cit = std::max_element(set.begin(), set.end());
+	if (cit != set.end()) {
+		return (*cit);
+	}
+	return -1;
+}
+
+int sock_deal_client(int cfd) {
+	const int MAX_NUM = 1024;
+	char buf[MAX_NUM];
+	int num = 0;
+	// TODO 退出机制如果返回0 代表什么???
+	if((num = recv(cfd, buf, MAX_NUM, 0)) <= 0 ) {
+		// clear
+		return num;
+	}
+
+	{
+		buf[num] = 0;
+		char sbuf[1024];
+		sprintf(sbuf, "client %d send msg : %s", cfd, buf);
+		log(sbuf);
+	}
+	
+	if ((num = send(cfd, buf, num, 0)) <= 0) {
+		return -1;
+	}
+
+	return cfd;
 }
 
 // ----------------------------------------------
-
-
 
 /*
  *	现象 第一个timeout 之前没问题 timeout 之后问题就来了
@@ -63,44 +100,45 @@ void sock_select_mode(int sfd) {
 	fd_set set;
 	FD_ZERO(&tset);
 	FD_SET(sfd, &tset);
-//	std::set<int> active_fds;
+	std::set<int> active_fds;
+	active_fds.insert(sfd);
 
 	for(;;) {
 		FD_ZERO(&set);
 		set = tset;
-		timeval timeout = {1, 0};
-		int ret = select(sfd+1, &set, NULL, NULL, &timeout);
+		timeval timeout = {10, 0};
+		int ret = select(max_fd(active_fds) + 1, &set, NULL, NULL, &timeout);
 		if(ret < 0) {
 			err_log("select error");
 			break;
 		} else if (ret == 0) {
-			printf("select timeout...\n");
+			log("select timeout...");
 		} else {
 			if (FD_ISSET(sfd, &set)) {
 				log("get accept...");
 				int cfd = accept(sfd, NULL, NULL);
 				sock_send_msg(cfd);
-				active_fds.push_back(cfd);
+				active_fds.insert(cfd);
 				FD_SET(cfd, &tset);
-				close(cfd);
 			}
 
-			for (std::set<int>::iterator it = active_fds.begini(); it != active_fds.end(); ++it) {
+			for (std::set<int>::iterator it = active_fds.begin(); it != active_fds.end(); ++it) {
+
+				if((*it) == sfd)
+					continue;
+
 				if(FD_ISSET(*it, &set)) {
 					// client active
 					// read bytes and write back
 					// if error return
 					int cfd = *it;
-					const int MAX_NUM = 1024;
-					char buf[MAX_NUM];
-					int num = 0;
-					// TODO 退出机制如果返回0 代表什么???
-					if((num = recv(cfd, buf, MAX_NUM, 0)) < 0 ) {
-						// clear
+					
+					if (sock_deal_client(cfd) <= 0) {
 						active_fds.erase(cfd);
 						FD_CLR(cfd, &tset);
 						close(cfd);
 					}
+
 				}
 			}
 		}
