@@ -4,6 +4,8 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/epoll.h>
+
 #include <errno.h>
 #include <arpa/inet.h>
 
@@ -54,7 +56,7 @@ void set_socket_reuse(int fd) {
 
 // ----------------------------------------------
 void sock_send_msg(int fd) {
-	const char * buf = "hello world";
+	const char * buf = "hello world\n";
 	send(fd, buf, strlen(buf), 0);
 }
 
@@ -146,6 +148,53 @@ void sock_select_mode(int sfd) {
 
 }
 
+void sock_epoll_mode(int sfd) {
+	const int max_event_count = 1024;
+	epoll_event ev;
+	epoll_event events[max_event_count];
+
+	int epfd = epoll_create(1024);
+	
+	if (epfd < 0) {
+		err_log("epoll_create error");
+		return;
+	}
+
+	ev.events = EPOLLIN;
+	ev.data.fd = sfd;
+
+	if (epoll_ctl(epfd, EPOLL_CTL_ADD, sfd, &ev)) {
+		err_log("epoll_ctl error");
+		return;
+	}
+
+	for (;;) {
+		int fd_num = epoll_wait(epfd, events, max_event_count, -1);
+		
+		if(fd_num == -1) {
+			err_log("epoll_wait error");
+		}
+
+		for(int index = 0 ; index < fd_num ; ++index) {
+			if (events[index].data.fd == sfd) {
+				// accept new socket
+				int cfd = accept(sfd, NULL, NULL);
+				ev.events = EPOLLIN | EPOLLET; // TODO
+				ev.data.fd = cfd;
+
+//				setnonblocking(cfd);
+
+				if(epoll_ctl(epfd, EPOLL_CTL_ADD, cfd, &ev)) {
+					err_log("accept epoll_ctl error");
+					close(cfd);
+				}
+			} else {
+				// other message come
+				sock_deal_client(events[index].data.fd);
+			}
+		}
+	}
+}
 
 #endif // __SOCKET_TOOLS_H__
 
