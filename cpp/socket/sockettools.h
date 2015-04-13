@@ -4,10 +4,15 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/epoll.h>
+#include <sys/resource.h>
+
 #include <errno.h>
 #include <arpa/inet.h>
 
 #include <fcntl.h>
+
+#include <string.h>
 
 #include <algorithm>
 #include <set>
@@ -21,6 +26,30 @@ void log(const char * msg) {
 	printf("log : %s \n", msg);
 }
 
+void make_nonblocking(int fd) {
+	fcntl(fd, F_SETFL, O_NONBLOCK);
+}
+
+void pr_cpu_time() {
+	double			user, sys;
+	struct rusage	myusage, childusage;
+
+	if (getrusage(RUSAGE_SELF, &myusage) < 0)
+		err_log("getrusage error");
+	if (getrusage(RUSAGE_CHILDREN, &childusage) < 0)
+		err_log("getrusage error");
+
+	user = (double) myusage.ru_utime.tv_sec +
+									myusage.ru_utime.tv_usec/1000000.0;
+	user += (double) childusage.ru_utime.tv_sec +
+									childusage.ru_utime.tv_usec/1000000.0;
+	sys = (double) myusage.ru_stime.tv_sec +
+								 myusage.ru_stime.tv_usec/1000000.0;
+	sys += (double) childusage.ru_stime.tv_sec +
+								  childusage.ru_stime.tv_usec/1000000.0;
+
+	printf("\nuser time = %g, sys time = %g\n", user, sys);
+}
 
 int socket_tcp_server(int port) {
 
@@ -38,7 +67,7 @@ int socket_tcp_server(int port) {
 		return -1;
 	}
 
-	if(listen(sfd, 5)) {
+	if(listen(sfd, 10000)) {
 		err_log("listen error");
 		return -1;
 	}
@@ -59,7 +88,7 @@ void set_socket_reuse(int fd) {
 
 // ----------------------------------------------
 void sock_send_msg(int fd) {
-	const char * buf = "hello world";
+	const char * buf = "hello world\n";
 	send(fd, buf, strlen(buf), 0);
 }
 
@@ -156,20 +185,71 @@ void sock_select_mode(int sfd) {
 
 }
 
-void sock_eopll_mode(int sfd) {
-  epoll_event ev;
-  ev.data.fd = sfd;
-  ev.events = EPOLLIN;
+//void sock_eopll_mode(int sfd) {
+//  epoll_event ev;
+//  ev.data.fd = sfd;
+//  ev.events = EPOLLIN;
+//
+//  int epfd = epoll_create(1024);
+//
+//  int sfd = socket_tcp_server(8888);
+//  
+//  if(epoll_ctl(epfd, EPOLL_CTL_ADD, sfd, &ev) == -1) {
+//    // TODO error
+//    return ;
+//  }
+//  
+//}
 
-  int epfd = epoll_create(1024);
+void sock_epoll_mode(int sfd) {
+	const int max_event_count = 1024;
+	epoll_event ev;
+	epoll_event events[max_event_count];
 
-  int sfd = socket_tcp_server(8888);
-  
-  if(epoll_ctl(epfd, EPOLL_CTL_ADD, sfd, &ev) == -1) {
-    // TODO error
-    return ;
-  }
-  
+	int epfd = epoll_create(max_event_count);
+	
+	if (epfd < 0) {
+		err_log("epoll_create error");
+		return;
+	}
+
+	ev.events = EPOLLIN;
+	ev.data.fd = sfd;
+
+	if (epoll_ctl(epfd, EPOLL_CTL_ADD, sfd, &ev)) {
+		err_log("epoll_ctl error");
+		return;
+	}
+
+	for (;;) {
+		int fd_num = epoll_wait(epfd, events, max_event_count, -1);
+		
+		if(fd_num == -1) {
+			err_log("epoll_wait error");
+		}
+
+		for(int index = 0 ; index < fd_num ; ++index) {
+			if (events[index].data.fd == sfd) {
+				// accept new socket
+				int cfd = accept(sfd, NULL, NULL);
+				ev.events = EPOLLIN | EPOLLET; // TODO
+				ev.data.fd = cfd;
+
+//				setnonblocking(cfd);
+
+				if(epoll_ctl(epfd, EPOLL_CTL_ADD, cfd, &ev)) {
+					err_log("accept epoll_ctl error");
+					close(cfd);
+				}
+			} else {
+				// other message come
+				int fd = events[index].data.fd;
+				sock_deal_client(fd);
+				epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);
+				close(fd);
+			}
+		}
+	}
 }
 
 #endif // __SOCKET_TOOLS_H__
