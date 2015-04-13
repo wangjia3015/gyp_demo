@@ -30,8 +30,8 @@ int main(int argc, char ** argv) {
 	request[nbytes] = 0;
 
 	// flush 出现问题
-	//printf("run nchildren %d loops %d \n", nchildren, nloops);
-
+	printf("run nchildren %d loops %d bytes %d\nbytes %s\n", nchildren, nloops, nbytes, request);
+  fflush(stdout);
 	for (int i = 0 ; i < nchildren; i++) {
 		int pid = fork();
 		if(pid == 0) {
