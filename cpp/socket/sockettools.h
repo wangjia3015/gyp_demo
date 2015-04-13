@@ -22,6 +22,11 @@ void log(const char * msg) {
 	printf("log : %s \n", msg);
 }
 
+void make_nonblocking(int fd) {
+	fcntl(fd, F_SETFL, O_NONBLOCK);
+}
+
+
 
 int socket_tcp_server(int port) {
 
