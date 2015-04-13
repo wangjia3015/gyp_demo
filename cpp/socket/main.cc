@@ -6,14 +6,6 @@
 
 int main() {
 	int sfd = socket_tcp_server(8888);
-	
-
 	sock_select_mode(sfd);
-//	for(;;) {
-//		int cfd = accept(sfd, NULL, NULL);
-//		sock_send_msg(cfd);
-//		close(cfd);
-//	}
-
 	return 0;
 }

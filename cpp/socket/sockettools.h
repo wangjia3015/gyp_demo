@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <arpa/inet.h>
 
+#include <fcntl.h>
 
 #include <algorithm>
 #include <set>
@@ -43,6 +44,10 @@ int socket_tcp_server(int port) {
 	}
 	
 	return sfd;
+}
+
+void sock_set_nonblocking(int fd) {
+  fcntl(fd, F_SETFL, O_NONBLOCK);  
 }
 
 void set_socket_reuse(int fd) {
@@ -90,6 +95,10 @@ int sock_deal_client(int cfd) {
 	return cfd;
 }
 
+void set_nonblocking(int fd) {
+  fcntl(fd, F_SETFL, O_NONBLOCK);
+}
+
 // ----------------------------------------------
 
 /*
@@ -117,6 +126,7 @@ void sock_select_mode(int sfd) {
 			if (FD_ISSET(sfd, &set)) {
 				log("get accept...");
 				int cfd = accept(sfd, NULL, NULL);
+        set_nonblocking(cfd);
 				sock_send_msg(cfd);
 				active_fds.insert(cfd);
 				FD_SET(cfd, &tset);
@@ -146,6 +156,21 @@ void sock_select_mode(int sfd) {
 
 }
 
+void sock_eopll_mode(int sfd) {
+  epoll_event ev;
+  ev.data.fd = sfd;
+  ev.events = EPOLLIN;
+
+  int epfd = epoll_create(1024);
+
+  int sfd = socket_tcp_server(8888);
+  
+  if(epoll_ctl(epfd, EPOLL_CTL_ADD, sfd, &ev) == -1) {
+    // TODO error
+    return ;
+  }
+  
+}
 
 #endif // __SOCKET_TOOLS_H__
 
