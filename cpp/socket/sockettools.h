@@ -252,5 +252,59 @@ void sock_epoll_mode(int sfd) {
 	}
 }
 
+int writen(int fd, void * sbuf, size_t buf_size) {
+	char * buf = (char *)sbuf;
+	int ret;
+	int left_size = buf_size;
+	while(left_size > 0) {
+		ret = write(fd, buf, left_size);
+		if(ret <= 0) {
+			err_log("write err");
+			return (buf_size - left_size);
+		} 
+
+		left_size -= ret;
+		buf += ret;
+	}
+	return buf_size;
+}
+
+int readn(int fd, void * sbuf, size_t buf_size) {
+	char * buf = (char *)sbuf;
+	int ret;
+	int s = buf_size;
+	while(s > 0) {
+		ret = read(fd, buf, s);
+		if(ret <= 0) {
+			err_log("read err");
+			return (buf_size - s);
+		}
+
+		s -= ret;
+		buf += ret;
+	}
+	return buf_size;
+}
+
+int read_fd(int fromfd) {
+	int nfd;
+	int trans_size = sizeof(nfd);
+	if(readn(fromfd, &nfd, trans_size) != trans_size) {
+		return -1;
+	}
+	//nfd = ntohl(nfd);
+	return nfd;
+}
+
+int write_fd(int tofd, int cfd) {
+//int nfd = htonl(cfd);
+	int nfd = cfd;
+	int trans_size = sizeof(nfd);
+	if(writen(tofd, &nfd, trans_size) != trans_size) {
+		return -1;
+	}
+	return trans_size;
+}
+
 #endif // __SOCKET_TOOLS_H__
 
