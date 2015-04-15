@@ -13,6 +13,8 @@ void my_lock_init(const char *pathname) {
 	strncpy(lock_file, pathname, 1024);
 	log(lock_file);
 	lock_fd = mkstemp(lock_file);
+  unlink(lock_file);
+  printf("lock_file %s\n" ,lock_file);
 	assert(lock_fd > 0);
 
 	lock_it.l_type = F_WRLCK;
