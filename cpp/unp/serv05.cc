@@ -2,6 +2,8 @@
 
 #include "../socket/sockettools.h"
 
+#define LOG(msg) err_log(msg);
+
 struct child {
 	pid_t child_pid;
 	int child_pipefd;
@@ -16,8 +18,12 @@ void child_work(int pipefd) {
 	// write 1 byte back
 	int cfd;
 	for (;;) {
+		printf("pipeid %d\n", pipefd);
 		if ((cfd = read_fd(pipefd)) > 0) {
-			sock_deal_client(cfd);
+			printf("cfd %d errno %d\n", cfd, errno);
+			if(sock_deal_client(cfd) <= 0) {
+				err_log("sock_deal_client error");
+			}
 			close(cfd);
 		}
 		int n = 1;
@@ -32,7 +38,7 @@ void child_work(int pipefd) {
 void child_make(child *ptr, int i, int sfd) {
 	// 
 	int fds[2];
-	if(socketpair(AF_INET, SOCK_STREAM, 0, fds) != 0) {
+	if(socketpair(AF_UNIX, SOCK_STREAM, 0, fds) != 0) {
 		err_log("create sub_process error");
 		exit(0);
 	}
