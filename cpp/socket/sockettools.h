@@ -54,6 +54,7 @@ void pr_cpu_time() {
 int socket_tcp_server(int port) {
 
 	int sfd = socket(AF_INET, SOCK_STREAM, 0);
+	printf("sfd %d\n", sfd);
 
 	set_socket_reuse(sfd);
 
@@ -80,7 +81,7 @@ void sock_set_nonblocking(int fd) {
 }
 
 void set_socket_reuse(int fd) {
-	const int on = 1;
+	int on = 1;
 	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &on, sizeof(on))) {
 		err_log("setsockopt error");
 	}
@@ -286,25 +287,25 @@ int readn(int fd, void * sbuf, size_t buf_size) {
 	return buf_size;
 }
 
-int read_fd(int fromfd) {
-	int nfd;
-	int trans_size = sizeof(nfd);
-	if(readn(fromfd, &nfd, trans_size) != trans_size) {
-		return -1;
-	}
-	//nfd = ntohl(nfd);
-	return nfd;
-}
-
-int write_fd(int tofd, int cfd) {
-//int nfd = htonl(cfd);
-	int nfd = cfd;
-	int trans_size = sizeof(nfd);
-	if(writen(tofd, &nfd, trans_size) != trans_size) {
-		return -1;
-	}
-	return trans_size;
-}
+//int read_fd(int fromfd) {
+//	int nfd;
+//	int trans_size = sizeof(nfd);
+//	if(readn(fromfd, &nfd, trans_size) != trans_size) {
+//		return -1;
+//	}
+//	//nfd = ntohl(nfd);
+//	return nfd;
+//}
+//
+//int write_fd(int tofd, int cfd) {
+////int nfd = htonl(cfd);
+//	int nfd = cfd;
+//	int trans_size = sizeof(nfd);
+//	if(writen(tofd, &nfd, trans_size) != trans_size) {
+//		return -1;
+//	}
+//	return trans_size;
+//}
 
 #endif // __SOCKET_TOOLS_H__
 

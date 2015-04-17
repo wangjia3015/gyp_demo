@@ -1,7 +1,7 @@
 #include <stdio.h>
 
 #include "../socket/sockettools.h"
-
+#include "trans_fd.h"
 #define LOG(msg) err_log(msg);
 
 struct child {
@@ -99,6 +99,7 @@ int main() {
 		if(FD_ISSET(sfd, &masterset)) {
 			//
 			int cfd = accept(sfd, NULL, NULL);
+			printf("accept cfd %d\n", cfd);
 			
 			int i = 0;
 			for(;i < sub_process_count; ++i) {
@@ -113,11 +114,12 @@ int main() {
 			}
 			
 			// TODO write fd and wait result
-			if(write_fd(ptr[i].child_pipefd, cfd)) {
+			if (write_fd(ptr[i].child_pipefd, cfd) > 0) {
 				ptr[i].child_status = 1;
 				ptr[i].child_count++;
 				navail--;
 			}
+			close(cfd);
 
 			if(--nsel == 0) {
 				continue;
