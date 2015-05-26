@@ -16,6 +16,9 @@ int sock_init(int port) {
   addr.sin_port = htons(port);
   addr.sin_addr.s_addr = htonl(0);
 
+  err_log("123");
+  
+
   int sfd = socket(AF_INET, SOCK_STREAM, 0);
 
   int on = 1;
